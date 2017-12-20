@@ -1,0 +1,408 @@
+#!/usr/bin/perl
+# Perl - Stack of Perl Exp
+# License    : GNU GPL v3 or later
+# Author     : Aurélien DESBRIERES
+# Mail       : aurelien@hackers.camp
+# Project    : Programming Deeper in Perl
+# Created on : Wednesday December 13 2017
+
+# Write with Emacs-Nox ──────────────────────────┐
+# Perl - x0001.pl ───────────────────────────────┘
+
+# using perl -c <file> to check the code
+# perl -d:Trace <file> <options> to check the code execution
+
+# How to improve security level in perl? like the C compiler
+# time gcc -std=c11 -fstack-protector-strong -Wpedantic -pedantic-errors -Wall -g -O3 -Os -Og -o a a.c
+
+# from https://docstore.mik.ua/orelly/perl/advprog/ch02_04.htm
+# advanced programming perl
+
+
+my(%profs);                             # prof_read_files() populates this data structure from file
+
+sub
+  prof_read_file
+  {
+      my ($filename) = @_;
+      my ($line, $curr_prof);
+      open (F, $filename) || die "Could not open $filename";
+      while ($line = <F>) {
+          chomp($line);
+          next if $line =~ /^\s*$/;           # skip blank lines
+          if ($line =~ /^id.*:\s*(.*)/) {
+              # Use an anonymous hash to store a professor's data
+              $profs{$1} = $curr_prof = {};
+          } elsif ($line =~ /^Office Hours.*:\s*(.*)/) {
+              # $1 contains a string like 'Mon 2-3, Tue 4-6'
+              $curr_prof->{Office Hours} = interval_parse($1);
+          } elsif ($line =~ /^Courses.*:\s*(.*)/) {
+              # $1 contains something like 'HS201, MA101'
+              my (@courses_taught) = split(/[\s,]+/, $1);
+              $curr_prof->{Courses} = \@courses_taught;
+          }
+      }
+  }
+
+  my %base_hours = (
+                    mon => 0, tue => 12, wed => 24, thu => 36, fri => 48
+                   );
+  sub
+    interval_parse
+    {
+        my ($interval_sequense) = @_;   # contains "Mon 3-5, Tue 2-6"
+        my ($time_range) = "";
+        foreach $day_hours (split /,/, $interval_sequense) {
+            # $day_hours contains "Mon 3-5" etc.
+            my ($day, $from, $to) =
+              ($day_hours =~ /([A-Za-z]+).*(\d+)-(\d+)/);
+            # if $from or $to is less than 7, it must be afternoon. Normalize
+            # it by adding 12. Then reduce it to a zero base by subtracting 7
+            # (that is, 7 hrs to 19 hrs becomes 0 - 12. Finally,
+            # normalize each hour in a day with respect to weekly hours,
+            # by adding in the day's "base hour"
+            $to = 19 if $to == 7;
+            $from += 12 if $from < 7 ; $to += 12 if $to <= 7;
+            my $base = $base_hours{lc $day};
+            $from += $base - 7; $to += $base - 7;
+            # At this point Tue 7a.m ==> 12 and Tue 4 p.m => 21
+            for ($i = $from; $i < $to; $i++) {
+                # Set the corresponding bit
+                vec($time_range, $i, 1) = 1;
+            }
+        }
+        $time_range;
+    }
+
+
+    # Overlapping hours
+    sub prof_check_constraints {
+        my ($prof) = @_;
+        my $r_prof = $profs{$prof};     # %profs created by profs_read_file
+        my $office_hours = $r_prof->{office Hours};
+        my $rl_courses =
+$r_prof->{Courses}
+;
+        for $i (0 .. $#{$rl_courses}) {
+            $course_hours = course_get_hours($rl_courses->[$i]);
+            if (interval_conflicts($office_hours, $course_hours)) {
+                print "Prof. ", $r_prof->{name},
+                  " Office hours conflict with course $course_taught\n";
+            }
+            for $j ($i .. $#{$rl_courses}) {
+                my ($other_course_hours) = course_get_hours($rl_courses->[$j]);
+                if (interval_conflicts ($course_hours, $other_course_hours)) {
+                    print "Prof. ", $r_prof->{name},
+                      ": Course conflict: ", $rl_courses->[$i], " ";
+                                             $rl_courses->[$j], "\n";
+                }
+            }
+        }
+
+        sub interval_conflicts {
+            my ($t1, $t2) = @_;
+            my ($combined) = $t1 & $t2;
+            # $combined will have at least one bit set if there's a conflict
+            my $offset = length($combined) * 8;
+            # start counting down from last bit, and see if any is set
+            while (--$offset >= 0) {
+                return 1 if vec($combined,$offset,1);
+            }
+            return 0;
+        }
+    }
+
+
+# 2.4 Pass the envelope
+open (F, "oscar.txt") || die "Could not open database: $:";
+%category_index = (); %year_index = ();
+while ($line = <F>) {
+    chomp $line;
+    ($year, $category, $name) = split (/:/, $line);
+    create_entry($year, $category, $name) if $name;
+}
+
+sub create_entry {                      # create_entry (year, category, name)
+    my($year, $category, $name) = @_;
+    # Create an anonymous array for each entry
+    $rlEntry = [$year, $category, $name];
+    # Add this to the two indices
+    push (@{$year_index {$year}}, $rlEntry);           # By Year
+    push (@{$category_index{$category}}, $rlEntry);    # By Category
+}
+
+# 2.4.2 Print all entries for a given year
+sub print_entries_for_year {
+    my($year) = @_;
+    print ("Year : $year \n");
+    foreach $rlEntry (@{$year_index{$year}}) {
+        print ("\t",$rlEntry->[1], " : ",$rlEntry->[2], "\n");
+    }
+}
+
+# 2.4.3 Print all entries sorted by year
+  sub print_all_entries_for_year {
+      foreach $year (sort keys %year_index) {
+          if ($rlEntry->[1] eq $category) {
+              print "$category ($year), ", $rlEntry->[2], "\n";
+              return;
+          }
+      }
+      print "No entry for $category ($year) \n";
+  }
+
+# 2.4.4 Print a Specific Entry, Given a Year and Category
+    sub print_entry {
+        my($year, $category) = @_;
+        foreach $rlEntry (@{$year_index{$year}}) {
+            if ($rlEntry->[1] eq $category) {
+                print "$category ($year), ", $rlEntry->[2], "\n";
+            }
+        }
+        print "No entry for $category ($year) \n";
+    }
+
+      # 2.5 Pretty-Printing
+      $level = -1;                      # Level of indentation
+    sub pretty_print {
+        my $var;
+        foreach $var (@_) {
+            if (ref ($var)) {
+                print_ref($var);
+            } else {
+                print_scalar($var);
+            }
+        }
+    }
+
+    sub print_scalar {
+        ++$level;
+        my $var = shift;
+        print_indented ($var);
+        --$level;
+    }
+      sub print_ref {
+          my $r = shift;
+          if (exists ($already_seen{$r})) {
+              print_indented ("$r (Seen earlier)");
+              return;
+          } else {
+              $already_seen{$r}=1;
+          }
+          my $ref_type = ref($r);
+          if ($ref_type eq "ARRAY") {
+              print_array($r);
+          } elsif ($ref_type eq "SCALAR") {
+              print "Ref -> $r";
+              print_scalar($$r);
+          } elsif ($ref_type eq "HASH") {
+              print_hash($r);
+          } elsif ($ref_type eq "REF") {
+              ++$level;
+              print_indented("Ref -> ($r)");
+              print_ref($$r);
+              --$level;
+          } else {
+              print_indented ("$ref_type (not supported)");
+          }
+      }
+
+        sub print_array {
+            my ($r_array) = @_;
+            ++$level;
+            print_indented ("[ # $r_array");
+            foreach $var (@$r_array) {
+                if (ref ($var)) {
+                    print_ref($var);
+                } else {
+                    print_scalar($var);
+                }
+            }
+            print_indented ("]");
+            --$level;
+        }
+          sub print_hash {
+              my($r_hash) = @_;
+              my($key, $val);
+              ++$level;
+              print_indented ("{ # $r_hash");
+              while (($key, $val) = each %$r_hash) {
+                  $val = ($val ? $val : '""');
+                  ++$level;
+                  if (ref ($val)) {
+                      print_indented ("$key = ");
+                      print_ref($val);
+                  } else {
+                      print_indented ("$key = $val");
+                  }
+                  --$level;
+              }
+              print_indented ("}");
+              --$level;
+          }
+            sub print_indented {
+                $spaces = ": " x $level;
+                print "${spaces}$_[0]\n";
+            }
+
+              $a = 20;                            # global variable
+            {
+                local ($a);                       # save $a's old value;
+                # new value is undef
+                my (@b);                          # Lexical variable
+                $a = 10;                          # Modify $a's new value
+                @b = ("Wall", "Sec");
+                print $a;                         # prints "10"
+                print "@b";                       # prints "Wall Sec"
+            }
+
+            # Block ended. Back to global scope wher only $a is valid
+            print $a;                             # prints "20", the old value
+            print @b;                             # prints a warning, because no global @b
+
+            $x = 10;
+            first();
+
+            sub first {
+                local ($x) = "zen";               # $x is still global, and has a new value
+                second();
+            }
+            sub second {
+                print $x;                         # Prints "zen", the current value of the global $x
+            }
+
+            local $x{foo};                        # Squirrel away $x{foo}'s value.
+
+#            my $x{foo};                           # Error. $x{foo} is not a variable
+
+            # 3.1.2.1 When would you ever need to use local?
+            { # Start of a new block
+                local(@ARGV) = ("/home/aurelien", "/home/aurelien/git/area51/Perl/oscar.txt");
+                while (<>) {
+                    # Iterate through each file and process each line
+                    print;                        # print, for example
+                }
+            } # Block ends. The original @ARGV restored after this.
+
+#            {
+#                local $/ = undef;                 # Saves previous value of $/, and substitutes
+#                # it with undef
+#                $a = <STDIN>;                     # Slurp all of STDIN into $a
+#            }
+
+            # 3.2 Typeglobs
+            $spud = "wow!";
+            @spud = ("idao", "russet");
+
+            *hailstone
+              =
+              *spud;
+            # Alias hailstone to spud using typeglob assignment
+            print "$hailstone\n";                    # print "Wow!"
+            print @hailstone, "\n",                  # prints "idaho russet"
+
+              # 3.1.2 Lexical Versus Dynamic Scoping
+              $a = 20;                            # global variable
+            {
+                local ($a);                       # save $a's old value;
+                # new value is undef
+                my (@b);                          # Lexical variable
+                $a = 10;                          # Modify $a's new value
+                @b = ("\nWall", "\tSec\n");
+                print $a;                         # prints "20", the old value
+                print @b;                         # prints a warning, because no global @b
+            }
+
+    $x = 10;
+    first();
+
+    sub first {
+    local ($x) = "zen\n";                           # $x is still global,  and has a new value
+    second();
+}
+    sub second {
+    print $x;                                     # Prints "zen", the current value of global $x
+}
+
+
+    # 3.1.2.1 When would you ever need to use local?
+
+    {
+    # Start of a new block
+        local(@ARGV) = ("/home/aurelien", "/home/aurelien/git/area51/Perl");
+        while (<>) {
+            # Iterate through each file and process each line
+            print;                                        # print, for example
+        }
+    }
+
+    {
+    local $/ = undef;                             # Saves previous value of $/, and substitutes
+    # it with undef
+#    $a = <STDIN>;                                 # Slup all of STDIN into $a
+}
+
+    $b = 10;
+    {
+    local *b;                                     # Save *b's values
+    *b = *a;                                      # Alias b to a
+    $b = 20;                                      # Same as modifying $a instead
+}                                                 # *b restored at end of block
+    print $a;                                     # prints "20"
+    print $b;                                     # prints "10"
+
+    # 3.2.2.1 Efficient parameter passing
+    @array = (10,20);
+    DoubleEachEntry(
+    *array
+    ); # @array and @copy are identical.
+    print "@array \n"; # prints 20 40
+
+    sub DoubleEachEntry {
+        # $_[0] contains *array
+        local
+          *copy
+          = shift;                                # Create a local alias
+        foreach $element (@copy) {
+            $element *= 2;
+        }
+    }
+
+    # 3.2.2.2 Aliasing on command line
+    sub a_long_drawn_out_sub_name {
+        print "A sub any other name is still a sub \n";
+    }
+    *f = *a_long_drawn_out_sub_name;              # Create an alias
+
+    # 3.2.2.3 Friendly predefined variables with aliases
+    use English;                                  # Import the module file called English.pm
+    # Try deleting a non-existent file
+    unlink ('/tmp/foo');
+    if (
+        $ERRNO
+       )  {   # Use $ERRNO instead of $!
+        print $ERRNO, "\n";                        # Prints "No such file or directory"
+    }
+
+    # 3.2.3 Aliasing Problem: Variables Ending
+    $x = 10;
+    foo(*x);
+    sub foo {
+        local(*y) = @_;
+        print "Before value of y : $y \n";
+        local($x) = 100;
+        print "After value of y : $y \n";
+    }
+
+    # Trace event in sequence
+    $x = 10;                                      # Assign a value to a global $x
+                                                  # function called
+    local *y = *x;                                # Save global *y's values. Alias it to *x
+    print "before value"                          # Because of the alias, $y is the name as $x,
+                                                  # hence this prints 10
+    local $x = 100;                               # IMPORTANT: local save $x's value (10)
+                                                  # and substitutes 100. Note that it does not
+                                                  # create a new $x variable
+                                                  # replaced by 100
+    print "after value"                           # But *y is still aliased to *x. Therefore,
+                                                  # $y now contains 100
