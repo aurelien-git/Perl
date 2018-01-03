@@ -24,9 +24,9 @@ BEGIN {
 # Send side routines
 sub connect {
     my ($pkg, $to_host, $to_port,$rcvd_notification_proc) = @_;
-    
+
     # Create a new internet socket
-    
+
     my $sock = IO::Socket::INET->new (
                                       PeerAddr => $to_host,
                                       PeerPort => $to_port,
@@ -40,7 +40,7 @@ sub connect {
         sock                   => $sock,
         rcvd_notification_proc => $rcvd_notification_proc,
     }, $pkg;
-    
+
     if ($rcvd_notification_proc) {
         my $callback = sub {_rcv($conn, 0)};
         set_event_handler ($sock, "read" => $callback);
@@ -74,7 +74,7 @@ sub _enqueue {
     my ($conn, $msg) = @_;
     # prepend length (encoded as network long)
     my $len = length($msg);
-    $msg = pack ('N', $len) . $msg; 
+    $msg = pack ('N', $len) . $msg;
     push (@{$conn->{queue}}, $msg);
 }
 
@@ -153,7 +153,7 @@ sub set_blocking {
 }
 sub handle_send_err {
    # For more meaningful handling of send errors, subclass Msg and
-   # rebless $conn.  
+   # rebless $conn.
    my ($conn, $err_msg) = @_;
    warn "Error while sending: $err_msg \n";
    set_event_handler ($conn->{sock}, "write" => undef);
@@ -167,7 +167,7 @@ my $main_socket = 0;
 sub new_server {
     @_ == 4 || die "Msg->new_server (myhost, myport, login_proc)\n";
     my ($pkg, $my_host, $my_port, $login_proc) = @_;
-    
+
     $main_socket = IO::Socket::INET->new (
                                           LocalAddr => $my_host,
                                           LocalPort => $my_port,
@@ -198,13 +198,13 @@ sub _rcv {                     # Complement to _send
         delete $conn->{'msg'};              # have made a copy
     } else {
         # The typical case ...
-        $msg           = "";                # Otherwise -w complains 
-        $offset        = 0 ;  
+        $msg           = "";                # Otherwise -w complains
+        $offset        = 0 ;
         $bytes_to_read = 0 ;                # Will get set soon
     }
     # We want to read the message length in blocking mode. Quite
     # unlikely that we'll get blocked too long reading 4 bytes
-    if (!$bytes_to_read)  {                 # Get new length 
+    if (!$bytes_to_read)  {                 # Get new length
         my $buf;
         $conn->set_blocking();
         $bytes_read = sysread($sock, $buf, 4);
@@ -315,4 +315,3 @@ sub event_loop {
 1;
 
 __END__
-
